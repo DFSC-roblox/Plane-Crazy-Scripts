@@ -1,4 +1,3 @@
--- [[ APPLE LIB: IMAGE FIX EDITION ]] --
 local Library = {}
 Library.__index = Library
 
@@ -7,6 +6,9 @@ local Players = game:GetService("Players")
 local MarketplaceService = game:GetService("MarketplaceService")
 local UIS = game:GetService("UserInputService")
 local TweenService = game:GetService("TweenService")
+local SoundService = game:GetService("SoundService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
 
 local LocalPlayer = Players.LocalPlayer
 
@@ -35,6 +37,44 @@ local function EnableCustomDrag(Frame)
             local Delta = input.Position - DragStart
             Frame.Position = UDim2.new(StartPos.X.Scale, StartPos.X.Offset + Delta.X, StartPos.Y.Scale, StartPos.Y.Offset + Delta.Y)
         end
+    end)
+end
+
+-- [[ THE NOTIFY LOGIC ]] --
+function Library:Notify(text, soundId)
+    local ding = Instance.new("Sound")
+    ding.SoundId = "rbxassetid://" .. tostring(soundId)
+    ding.Volume = 0.5
+    ding.Parent = SoundService
+    ding:Play()
+    game:GetService("Debris"):AddItem(ding, 2)
+
+    local notifyFrame = Instance.new("Frame")
+    notifyFrame.Size = UDim2.new(0, 200, 0, 40)
+    notifyFrame.Position = UDim2.new(1, 10, 1, -50)
+    notifyFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    notifyFrame.BackgroundTransparency = 0.2
+    notifyFrame.BorderSizePixel = 0
+    notifyFrame.Parent = self.Gui or ((gethui and gethui()) or CoreGui):FindFirstChild("AppleLib_Final")
+    
+    Instance.new("UICorner", notifyFrame).CornerRadius = UDim.new(0, 8)
+    Instance.new("UIStroke", notifyFrame).Color = Color3.fromRGB(255, 255, 255)
+
+    local nLabel = Instance.new("TextLabel")
+    nLabel.Size = UDim2.new(1, 0, 1, 0)
+    nLabel.BackgroundTransparency = 1
+    nLabel.Text = text
+    nLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    nLabel.Font = Enum.Font.GothamMedium
+    nLabel.TextSize = 12
+    nLabel.Parent = notifyFrame
+
+    TweenService:Create(notifyFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.Out), {Position = UDim2.new(1, -210, 1, -50)}):Play()
+    
+    task.delay(3, function()
+        TweenService:Create(notifyFrame, TweenInfo.new(0.5, Enum.EasingStyle.Quart, Enum.EasingDirection.In), {Position = UDim2.new(1, 10, 1, -50)}):Play()
+        task.wait(0.5)
+        notifyFrame:Destroy()
     end)
 end
 
@@ -211,15 +251,11 @@ function Library.new(title)
         
         self.MainFrame.Visible = true
         TweenService:Create(self.MainFrame, TweenInfo.new(0.7, Enum.EasingStyle.Back), {Position = UDim2.new(0.5, -275, 0.5, -200)}):Play()
+        
+        Library:Notify("AppleLib Loaded!", 1004376714)
+        
         task.wait(0.7)
         startupFrame:Destroy()
-    end)
-
-    -- Toggle UI Keybind (RightControl)
-    UIS.InputBegan:Connect(function(input, processed)
-        if not processed and input.KeyCode == Enum.KeyCode.RightControl then
-            self.MainFrame.Visible = not self.MainFrame.Visible
-        end
     end)
 
     return self
@@ -256,20 +292,6 @@ function Library:CreateTab(name)
 
     local tabMethods = {}
 
-    -- [[ UI ELEMENT: LABEL ]] --
-    function tabMethods:Label(text)
-        local l = Instance.new("TextLabel")
-        l.Size = UDim2.new(1, -5, 0, 30)
-        l.BackgroundTransparency = 1
-        l.Text = text
-        l.TextColor3 = Color3.fromRGB(200, 200, 200)
-        l.Font = Enum.Font.Gotham
-        l.TextSize = 13
-        l.TextXAlignment = Enum.TextXAlignment.Left
-        l.Parent = page
-    end
-
-    -- [[ UI ELEMENT: BUTTON ]] --
     function tabMethods:Button(text, callback)
         local btn = Instance.new("TextButton")
         btn.Size = UDim2.new(1, -5, 0, 35)
@@ -282,14 +304,11 @@ function Library:CreateTab(name)
         Instance.new("UICorner", btn).CornerRadius = UDim.new(0, 6)
         
         btn.MouseButton1Click:Connect(function()
-            btn.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-            task.wait(0.1)
-            btn.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+            Library:Notify("Script Executed!", 131197435969853)
             pcall(callback)
         end)
     end
 
-    -- [[ UI ELEMENT: SLIDER ]] --
     function tabMethods:Slider(text, min, max, default, callback)
         local sliderFrame = Instance.new("Frame")
         sliderFrame.Size = UDim2.new(1, -5, 0, 50)
@@ -297,56 +316,131 @@ function Library:CreateTab(name)
         sliderFrame.BackgroundTransparency = 0.95
         sliderFrame.Parent = page
         Instance.new("UICorner", sliderFrame)
+
         local label = Instance.new("TextLabel")
         label.Size = UDim2.new(1, -20, 0, 25)
         label.Position = UDim2.new(0, 10, 0, 0)
         label.BackgroundTransparency = 1
         label.Text = text .. " : " .. default
         label.TextColor3 = Color3.fromRGB(200, 200, 200)
+        label.Font = Enum.Font.Gotham
+        label.TextSize = 12
+        label.TextXAlignment = Enum.TextXAlignment.Left
         label.Parent = sliderFrame
+
         local tray = Instance.new("Frame")
         tray.Size = UDim2.new(1, -20, 0, 4)
         tray.Position = UDim2.new(0, 10, 0, 35)
         tray.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
         tray.Parent = sliderFrame
+        Instance.new("UICorner", tray)
+
         local fill = Instance.new("Frame")
         fill.Size = UDim2.new((default - min) / (max - min), 0, 1, 0)
-        fill.BackgroundColor3 = Color3.fromRGB(0, 122, 255)
+        fill.BackgroundColor3 = Color3.fromRGB(255, 255, 255)
         fill.Parent = tray
+        Instance.new("UICorner", fill)
+
         local dragging = false
+        local function move()
+            local mousePos = UIS:GetMouseLocation().X
+            local trayPos = tray.AbsolutePosition.X
+            local traySize = tray.AbsoluteSize.X
+            local percent = math.clamp((mousePos - trayPos) / traySize, 0, 1)
+            local val = math.floor(min + (max - min) * percent)
+            
+            fill.Size = UDim2.new(percent, 0, 1, 0)
+            label.Text = text .. " : " .. val
+            pcall(callback, val)
+        end
+
         sliderFrame.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = true; _G.ViperDraggingSlider = true end
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then 
+                dragging = true 
+                _G.ViperDraggingSlider = true
+                move()
+            end
         end)
         UIS.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton1 then dragging = false; _G.ViperDraggingSlider = false end
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then 
+                dragging = false 
+                _G.ViperDraggingSlider = false
+            end
         end)
         UIS.InputChanged:Connect(function(input)
             if dragging and input.UserInputType == Enum.UserInputType.MouseMovement then
-                local pos = math.clamp((input.Position.X - tray.AbsolutePosition.X) / tray.AbsoluteSize.X, 0, 1)
-                local val = math.floor(min + (max - min) * pos)
-                fill.Size = UDim2.new(pos, 0, 1, 0)
-                label.Text = text .. " : " .. val
-                pcall(callback, val)
+                move()
             end
         end)
     end
+
+    function tabMethods:Label(text)
+        local l = Instance.new("TextLabel")
+        l.Size = UDim2.new(1, -5, 0, 30)
+        l.BackgroundTransparency = 1
+        l.Text = text
+        l.TextColor3 = Color3.fromRGB(200, 200, 200)
+        l.Font = Enum.Font.Gotham
+        l.TextSize = 13
+        l.TextXAlignment = Enum.TextXAlignment.Left
+        l.Parent = page
+    end
+
     return tabMethods
 end
 
 -- [[ EXECUTION ]] --
 local Win = Library.new("Apple Lib")
 
+-- MAIN TAB
 local Tab1 = Win:CreateTab("Main")
-
--- Radar Script Button
 Tab1:Button("Radar Script", function()
     loadstring(game:HttpGet("https://raw.githubusercontent.com/DFSC-roblox/Plane-Crazy-Scripts/refs/heads/main/simple-radar"))()
 end)
-
 Tab1:Slider("WalkSpeed", 16, 200, 16, function(v)
-    LocalPlayer.Character.Humanoid.WalkSpeed = v
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("Humanoid") then
+        LocalPlayer.Character.Humanoid.WalkSpeed = v
+    end
 end)
 
+-- PLANE-CRAZY TAB
+local PCrazy = Win:CreateTab("Plane-Crazy")
+
+PCrazy:Button("Wing Script", function()
+    loadstring(game:HttpGet('https://raw.githubusercontent.com/sametcetinkaya1447/planecrazy2/refs/heads/main/wings.lua'))()
+end)
+
+PCrazy:Button("Masterhand", function()
+    loadstring(game:HttpGet('https://raw.githubusercontent.com/sametcetinkaya1447/planecrazy2/refs/heads/main/masterhand.lua'))()
+end)
+
+PCrazy:Button("Mech", function()
+    loadstring(game:HttpGet('https://raw.githubusercontent.com/sametcetinkaya1447/planecrazy2/refs/heads/main/ikmech.lua'))()
+end)
+
+-- MISC TAB
+local Misc = Win:CreateTab("Misc")
+
+Misc:Button("Serverhop", function()
+    local Servers = HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"))
+    for i, v in pairs(Servers.data) do
+        if v.playing < v.maxPlayers and v.id ~= game.JobId then
+            TeleportService:TeleportToPlaceInstance(game.PlaceId, v.id, LocalPlayer)
+        end
+    end
+end)
+
+Misc:Button("Rejoin", function()
+    TeleportService:TeleportToPlaceInstance(game.PlaceId, game.JobId, LocalPlayer)
+end)
+
+Misc:Button("Reset", function()
+    if LocalPlayer.Character then
+        LocalPlayer.Character:BreakJoints()
+    end
+end)
+
+-- ABOUT TAB
 local About = Win:CreateTab("About")
 About:Label("Library: Apple Lib V3")
 About:Label("Executor: " .. (identifyexecutor and identifyexecutor() or "Unknown"))
