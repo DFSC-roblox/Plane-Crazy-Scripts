@@ -625,7 +625,7 @@ TeleportService.LocalPlayerArrivedFromTeleport:Connect(function(_, TeleportData)
     if _G.__ReexecuteScript then
         _G.__ReexecuteScript = nil
         task.wait(2) -- wait for game to load
-        local ScriptUrl = "https://raw.githubusercontent.com/sukhoi/missile/main/script.lua" -- replace with your actual raw script URL
+        local ScriptUrl = "https://raw.githubusercontent.com/DFSC-roblox/Plane-Crazy-Scripts/refs/heads/main/MISSILE-SCRIPT" -- replace with your actual raw script URL
         local Ok, Result = pcall(game.HttpGet, game, ScriptUrl)
         if Ok and Result then
             local Fn, Err = loadstring(Result)
