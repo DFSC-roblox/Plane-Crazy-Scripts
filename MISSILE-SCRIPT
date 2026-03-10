@@ -1,0 +1,1106 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Workspace = game:GetService("Workspace")
+local UserInputService = game:GetService("UserInputService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+local TweenService = game:GetService("TweenService")
+local TeleportService = game:GetService("TeleportService")
+local LocalPlayer = Players.LocalPlayer
+
+local DEEP_PURPLE = Color3.fromRGB(128, 0, 128)
+local COLOR_OPTIONS = {
+    {
+        label = "BLUE",
+        color = Color3.fromRGB(0, 120, 255),
+    },
+    {
+        label = "RED",
+        color = Color3.fromRGB(255, 0, 0),
+    },
+    {
+        label = "WHITE",
+        color = Color3.fromRGB(255, 255, 255),
+    },
+    {
+        label = "PURPLE",
+        color = DEEP_PURPLE,
+    },
+    {
+        label = "GREEN",
+        color = Color3.fromRGB(0, 255, 0),
+    },
+    {
+        label = "YELLOW",
+        color = Color3.fromRGB(255, 255, 0),
+    },
+    {
+        label = "RAINBOW",
+        color = Color3.fromRGB(255, 0, 0), -- placeholder, updated dynamically
+    }
+}
+local DEFAULT_COLOR = COLOR_OPTIONS[4].color
+local IS_RAINBOW = false
+local RainbowHue = 0
+
+-- Rainbow updater
+RunService.Heartbeat:Connect(function(dt)
+    if not IS_RAINBOW then return end
+    RainbowHue = (RainbowHue + dt * 0.3) % 1
+    DEFAULT_COLOR = Color3.fromHSV(RainbowHue, 1, 1)
+    COLOR_OPTIONS[7].color = DEFAULT_COLOR
+end)
+
+local function FindAndSetupAircraft()
+    local Character = LocalPlayer.Character
+    local AircraftModel = nil
+
+    if Character then
+        AircraftModel = Character:FindFirstChild("Aircraft") or Workspace:FindFirstChild(LocalPlayer.Name .. " Aircraft")
+    end
+
+    if AircraftModel and AircraftModel:FindFirstChild("BlockStd") and AircraftModel.BlockStd:FindFirstChild("BlockStd") then
+        local PrimaryPart = AircraftModel.BlockStd.BlockStd
+        AircraftModel.PrimaryPart = PrimaryPart
+        PrimaryPart.Anchored = false
+
+        local PilotSeat = AircraftModel:FindFirstChild("PilotSeat") or Instance.new("Part")
+        for _, Part in ipairs(AircraftModel:GetDescendants()) do
+            if Part:IsA("BasePart") and not Part:IsDescendantOf(PilotSeat) and Part ~= PrimaryPart then
+                local Weld = Instance.new("WeldConstraint")
+                Weld.Part0 = PrimaryPart
+                Weld.Part1 = Part
+                Weld.Parent = PrimaryPart
+            end
+        end
+
+        local DetonationPart = AircraftModel:FindFirstChild("ExplosiveBlock") or AircraftModel:GetChildren()[9]
+
+        return AircraftModel, PrimaryPart, DetonationPart
+    end
+    return nil, nil, nil
+end
+
+local AircraftModel, MissilePrimaryPart, DetonationPart = FindAndSetupAircraft()
+
+local PredictionBall = Instance.new("Part")
+PredictionBall.Shape = Enum.PartType.Ball
+PredictionBall.Color = Color3.fromRGB(255, 255, 255)
+PredictionBall.Material = Enum.Material.ForceField
+PredictionBall.Size = Vector3.new(2, 2, 2)
+PredictionBall.Anchored = true
+PredictionBall.CanCollide = false
+PredictionBall.Transparency = 0.6
+PredictionBall.Parent = Workspace
+
+local PredictionHighlight = Instance.new("Highlight")
+PredictionHighlight.FillColor = Color3.fromRGB(0, 255, 0)
+PredictionHighlight.OutlineColor = Color3.fromRGB(0, 255, 0)
+PredictionHighlight.FillTransparency = 0.5
+PredictionHighlight.OutlineTransparency = 0
+PredictionHighlight.Adornee = PredictionBall
+PredictionHighlight.Parent = PredictionBall
+
+local PredictionCollider = Instance.new("Part")
+PredictionCollider.Name = "PredictionCollider"
+PredictionCollider.Size = Vector3.new(1, 0.5, 0.5)
+PredictionCollider.Anchored = true
+PredictionCollider.CanCollide = true
+PredictionCollider.Transparency = 0
+PredictionCollider.Parent = Workspace
+
+RunService.Heartbeat:Connect(function()
+    if PredictionBall and PredictionBall.Parent then
+        PredictionCollider.CFrame = PredictionBall.CFrame
+        if LocalPlayer.Character then
+            for _, Part in ipairs(LocalPlayer.Character:GetDescendants()) do
+                if Part:IsA("BasePart") then
+                    PredictionCollider.CollisionGroupId = 0
+                    PredictionCollider.CanCollide = true
+                    Part.CanCollide = true
+                end
+            end
+        end
+    end
+end)
+
+local MainGui = Instance.new("ScreenGui")
+MainGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+MainGui.IgnoreGuiInset = true
+MainGui.ResetOnSpawn = false
+MainGui.Parent = game:GetService("CoreGui")
+
+local MenuFrame = Instance.new("Frame")
+MenuFrame.Size = UDim2.new(0, 340, 0, 435)
+MenuFrame.Position = UDim2.new(0.5, -170, 0.5, -200)
+MenuFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+MenuFrame.Active = true
+MenuFrame.Draggable = true
+MenuFrame.Parent = MainGui
+
+local FrameStroke = Instance.new("UIStroke")
+FrameStroke.Thickness = 4
+FrameStroke.Color = Color3.fromRGB(0, 0, 0)
+FrameStroke.Parent = MenuFrame
+
+local BackgroundImage = Instance.new("ImageLabel")
+BackgroundImage.Image = "rbxassetid://1316045217"
+BackgroundImage.ImageColor3 = Color3.fromRGB(0, 0, 0)
+BackgroundImage.ImageTransparency = 0.4
+BackgroundImage.Size = UDim2.new(1, 40, 1, 40)
+BackgroundImage.Position = UDim2.new(0, -20, 0, -20)
+BackgroundImage.BackgroundTransparency = 1
+BackgroundImage.ZIndex = 0
+BackgroundImage.Parent = MenuFrame
+
+local TitleLabel = Instance.new("TextLabel")
+TitleLabel.Size = UDim2.new(1, -40, 0, 40)
+TitleLabel.Position = UDim2.new(0, 0, 0, 0)
+TitleLabel.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+TitleLabel.Text = "by sukhoi / v5"
+TitleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+TitleLabel.Font = Enum.Font.Michroma
+TitleLabel.TextSize = 18
+TitleLabel.TextXAlignment = Enum.TextXAlignment.Center
+TitleLabel.Parent = MenuFrame
+
+local CloseButton = Instance.new("TextButton")
+CloseButton.Size = UDim2.new(0, 40, 0, 40)
+CloseButton.Position = UDim2.new(1, -40, 0, 0)
+CloseButton.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
+CloseButton.Text = "x"
+CloseButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+CloseButton.Font = Enum.Font.Michroma
+CloseButton.TextSize = 18
+CloseButton.Parent = MenuFrame
+
+CloseButton.MouseEnter:Connect(function()
+    CloseButton.BackgroundColor3 = Color3.fromRGB(120, 0, 0)
+end)
+CloseButton.MouseLeave:Connect(function()
+    CloseButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+end)
+CloseButton.MouseButton1Click:Connect(function()
+    MainGui:Destroy()
+    PredictionBall:Destroy()
+    pcall(function()
+        for _, Gui in pairs(NameESP_Guis) do
+            Gui:Destroy()
+        end
+        if MissileESP_Gui then
+            MissileESP_Gui:Destroy()
+        end
+        if TargetESP_Gui then
+            TargetESP_Gui:Destroy()
+        end
+        DestroyMissileTrail()
+    end)
+end)
+
+local ContentFrames = {
+    Missile = Instance.new("Frame"),
+    Visual = Instance.new("Frame"),
+}
+for Name, Frame in pairs(ContentFrames) do
+    Frame.Size = UDim2.new(1, -20, 1, -80)
+    Frame.Position = UDim2.new(0, 10, 0, 45)
+    Frame.BackgroundTransparency = 1
+    Frame.Visible = Name == "Missile"
+    Frame.Parent = MenuFrame
+end
+
+local TabContainer = Instance.new("Frame")
+TabContainer.Size = UDim2.new(1, -20, 0, 40)
+TabContainer.Position = UDim2.new(0, 10, 1, -50)
+TabContainer.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+TabContainer.BorderSizePixel = 0
+TabContainer.Parent = MenuFrame
+Instance.new("UICorner", TabContainer).CornerRadius = UDim.new(0, 10)
+
+local function CreateTabButton(Name, PositionIndex, FrameName)
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.new(0.5, -5, 1, -10)
+    Button.Position = UDim2.new(PositionIndex, 5, 0, 5)
+    Button.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    Button.Text = Name
+    Button.TextColor3 = Color3.fromRGB(220, 220, 220)
+    Button.Font = Enum.Font.Michroma
+    Button.TextSize = 16
+    Button.AutoButtonColor = false
+    Button.Parent = TabContainer
+    Instance.new("UICorner", Button).CornerRadius = UDim.new(0, 8)
+
+    Button.MouseEnter:Connect(function()
+        Button.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+    end)
+    Button.MouseLeave:Connect(function()
+        Button.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    end)
+
+    Button.MouseButton1Click:Connect(function()
+        for Name, Frame in pairs(ContentFrames) do
+            Frame.Visible = Name == FrameName
+        end
+
+        for _, Child in ipairs(TabContainer:GetChildren()) do
+            if Child:IsA("TextButton") then
+                Child.TextColor3 = Color3.fromRGB(220, 220, 220)
+                Child.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+            end
+        end
+
+        Button.TextColor3 = DEEP_PURPLE
+        Button.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+    end)
+    return Button
+end
+
+local MissileTabButton = CreateTabButton("Missile", 0, "Missile")
+local VisualTabButton = CreateTabButton("Visual", 0.5, "Visual")
+
+MissileTabButton.TextColor3 = DEEP_PURPLE
+MissileTabButton.BackgroundColor3 = Color3.fromRGB(15, 15, 15)
+
+local function CreateToggleButton(Name, YOffset, ParentFrame, DefaultState)
+    local Container = Instance.new("Frame")
+    Container.Size = UDim2.new(1, -20, 0, 30)
+    Container.Position = UDim2.new(0, 10, 0, YOffset)
+    Container.BackgroundTransparency = 1
+    Container.Parent = ParentFrame
+
+    local ToggleButton = Instance.new("TextButton")
+    ToggleButton.Size = UDim2.new(0, 24, 0, 24)
+    ToggleButton.Position = UDim2.new(0, 0, 0.5, -12)
+    ToggleButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    ToggleButton.Text = ""
+    ToggleButton.Parent = Container
+    Instance.new("UICorner", ToggleButton).CornerRadius = UDim.new(0, 4)
+
+    local FillFrame = Instance.new("Frame")
+    FillFrame.Size = UDim2.new(1, 0, 1, 0)
+    FillFrame.BackgroundColor3 = DEEP_PURPLE
+    FillFrame.Parent = ToggleButton
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -30, 1, 0)
+    Label.Position = UDim2.new(0, 30, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Label.Font = Enum.Font.Michroma
+    Label.TextSize = 16
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Text = Name
+    Label.Parent = Container
+
+    local IsActive = DefaultState or false
+    FillFrame.Visible = IsActive
+
+    ToggleButton.MouseButton1Click:Connect(function()
+        IsActive = not IsActive
+        FillFrame.Visible = IsActive
+    end)
+
+    return function()
+        return IsActive
+    end
+end
+
+local TargetTextBox = Instance.new("TextBox")
+TargetTextBox.Size = UDim2.new(1, -20, 0, 35)
+TargetTextBox.Position = UDim2.new(0, 10, 0, 10)
+TargetTextBox.PlaceholderText = "Enter target player..."
+TargetTextBox.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+TargetTextBox.TextColor3 = Color3.new(1, 1, 1)
+TargetTextBox.ClearTextOnFocus = false
+TargetTextBox.Font = Enum.Font.Michroma
+TargetTextBox.TextSize = 16
+TargetTextBox.Parent = ContentFrames.Missile
+Instance.new("UICorner", TargetTextBox).CornerRadius = UDim.new(0, 8)
+
+local TargetHintLabel = Instance.new("TextLabel")
+TargetHintLabel.Size = UDim2.new(1, -20, 0, 20)
+TargetHintLabel.Position = UDim2.new(0, 10, 0, 50)
+TargetHintLabel.BackgroundTransparency = 1
+TargetHintLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+TargetHintLabel.Font = Enum.Font.Michroma
+TargetHintLabel.TextXAlignment = Enum.TextXAlignment.Left
+TargetHintLabel.TextSize = 14
+TargetHintLabel.Parent = ContentFrames.Missile
+
+local function CreateSimpleButton(Text, YOffset, ParentFrame)
+    local Button = Instance.new("TextButton")
+    Button.Size = UDim2.new(1, -20, 0, 35)
+    Button.Position = UDim2.new(0, 10, 0, YOffset)
+    Button.Text = Text
+    Button.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    Button.TextColor3 = Color3.new(1, 1, 1)
+    Button.Font = Enum.Font.Michroma
+    Button.TextSize = 16
+    Button.Parent = ParentFrame
+    Instance.new("UICorner", Button).CornerRadius = UDim.new(0, 8)
+
+    Button.MouseEnter:Connect(function()
+        Button.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    end)
+    Button.MouseLeave:Connect(function()
+        Button.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    end)
+    return Button
+end
+
+local LaunchButton = CreateSimpleButton("Launch Aircraft", 80, ContentFrames.Missile)
+local ViewMissileButton = CreateSimpleButton("View Missile", 125, ContentFrames.Missile)
+
+local OptionsContainer = Instance.new("Frame")
+OptionsContainer.Size = UDim2.new(1, -20, 0, 30)
+OptionsContainer.Position = UDim2.new(0, 10, 0, 170)
+OptionsContainer.BackgroundTransparency = 1
+OptionsContainer.Parent = ContentFrames.Missile
+
+local AutoDetonateContainer = Instance.new("Frame")
+AutoDetonateContainer.Size = UDim2.new(0.5, -5, 1, 0)
+AutoDetonateContainer.Position = UDim2.new(0, 0, 0, 0)
+AutoDetonateContainer.BackgroundTransparency = 1
+AutoDetonateContainer.Parent = OptionsContainer
+local GetAutoDetonateEnabled = CreateToggleButton("Auto Detonate", 0, AutoDetonateContainer, true)
+
+local NoCollisionContainer = Instance.new("Frame")
+NoCollisionContainer.Size = UDim2.new(0.5, -5, 1, 0)
+NoCollisionContainer.Position = UDim2.new(0.5, 5, 0, 0)
+NoCollisionContainer.BackgroundTransparency = 1
+NoCollisionContainer.Parent = OptionsContainer
+local GetNoCollisionEnabled = CreateToggleButton("No Collision", 0, NoCollisionContainer, false)
+
+local GetMissileESPEnabled = CreateToggleButton("Missile ESP", 20, ContentFrames.Visual, false)
+local GetTargetESPEnabled = CreateToggleButton("Target ESP", 60, ContentFrames.Visual, false)
+local GetMissileTrailEnabled = CreateToggleButton("Missile Trail", 140, ContentFrames.Visual, false)
+local GetNameESPEnabled = CreateToggleButton("Name ESP", 100, ContentFrames.Visual, false)
+
+-- Re-execute on hop toggle (Visual tab, below color selector)
+local GetReexecuteOnHopEnabled = CreateToggleButton("Re-execute on Hop", 300, ContentFrames.Visual, false)
+
+local NameESP_Guis = {}
+
+local function CreateNameESP(Player)
+    if Player == LocalPlayer then return end
+    if NameESP_Guis[Player] then return end
+
+    local Character = Player.Character
+    if not Character then return end
+
+    local Head = Character:FindFirstChild("Head")
+    if not Head then return end
+
+    local BillboardGui = Instance.new("BillboardGui")
+    BillboardGui.Name = "NameESP"
+    BillboardGui.Adornee = Head
+    BillboardGui.Size = UDim2.new(0, 200, 0, 50)
+    BillboardGui.AlwaysOnTop = true
+    BillboardGui.MaxDistance = 10000
+    BillboardGui.Parent = MainGui
+
+    local NameLabel = Instance.new("TextLabel")
+    NameLabel.Size = UDim2.new(1, 0, 1, 0)
+    NameLabel.BackgroundTransparency = 1
+    NameLabel.Text = Player.Name
+    NameLabel.TextColor3 = DEFAULT_COLOR
+    NameLabel.Font = Enum.Font.Michroma
+    NameLabel.TextSize = 14
+    NameLabel.Parent = BillboardGui
+    NameLabel.TextStrokeTransparency = 0
+    NameLabel.TextStrokeColor3 = Color3.fromRGB(0, 0, 0)
+
+    NameESP_Guis[Player] = BillboardGui
+end
+
+local function DestroyNameESP(Player)
+    if NameESP_Guis[Player] then
+        NameESP_Guis[Player]:Destroy()
+        NameESP_Guis[Player] = nil
+    end
+end
+
+RunService.RenderStepped:Connect(function()
+    if GetNameESPEnabled() then
+        for _, Player in ipairs(Players:GetPlayers()) do
+            if Player ~= LocalPlayer then
+                if not NameESP_Guis[Player] then
+                    CreateNameESP(Player)
+                end
+            end
+        end
+    else
+        for _, Gui in pairs(NameESP_Guis) do
+            Gui:Destroy()
+        end
+        table.clear(NameESP_Guis)
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(Player)
+    DestroyNameESP(Player)
+end)
+
+local function CreateColorSelector(LabelText, YOffset, ParentFrame, ColorOptions, DefaultIndex)
+    if not DefaultIndex then DefaultIndex = 1 end
+
+    local Container = Instance.new("Frame")
+    Container.Size = UDim2.new(1, -20, 0, 30)
+    Container.Position = UDim2.new(0, 10, 0, YOffset)
+    Container.BackgroundTransparency = 1
+    Container.Parent = ParentFrame
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(0.5, -10, 1, 0)
+    Label.Position = UDim2.new(0, 0, 0, 0)
+    Label.BackgroundTransparency = 1
+    Label.Text = LabelText
+    Label.TextColor3 = Color3.fromRGB(255, 255, 255)
+    Label.Font = Enum.Font.Michroma
+    Label.TextSize = 14
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = Container
+
+    local DropdownButton = Instance.new("TextButton")
+    DropdownButton.Size = UDim2.new(0.5, 0, 1, 0)
+    DropdownButton.Position = UDim2.new(0.5, 0, 0, 0)
+    DropdownButton.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    DropdownButton.TextColor3 = Color3.fromRGB(220, 220, 220)
+    DropdownButton.Font = Enum.Font.Michroma
+    DropdownButton.TextSize = 14
+    DropdownButton.AutoButtonColor = false
+    DropdownButton.Parent = Container
+    Instance.new("UICorner", DropdownButton).CornerRadius = UDim.new(0, 6)
+
+    local IsDropdownOpen = false
+    local DropdownContentFrame = Instance.new("Frame")
+    DropdownContentFrame.Size = UDim2.new(1, -20, 0, 0)
+    DropdownContentFrame.Position = UDim2.new(0, 10, 0, 30)
+    DropdownContentFrame.BackgroundTransparency = 1
+    DropdownContentFrame.ClipsDescendants = true
+    DropdownContentFrame.Parent = ParentFrame
+
+    local function ToggleDropdown()
+        IsDropdownOpen = not IsDropdownOpen
+        local TargetSize = UDim2.new(1, -20, 0, IsDropdownOpen and #ColorOptions * 28 or 0)
+        TweenService:Create(DropdownContentFrame, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = TargetSize
+        }):Play()
+    end
+
+    DropdownButton.MouseButton1Click:Connect(ToggleDropdown)
+
+    for Index, Option in ipairs(ColorOptions) do
+        local ItemButton = Instance.new("TextButton")
+        ItemButton.Size = UDim2.new(1, 0, 0, 28)
+        ItemButton.Position = UDim2.new(0, 0, 0, (Index - 1) * 28)
+        ItemButton.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+        ItemButton.TextColor3 = Color3.fromRGB(230, 230, 230)
+        ItemButton.Font = Enum.Font.Michroma
+        ItemButton.TextSize = 14
+        ItemButton.Text = Option.label
+        ItemButton.Parent = DropdownContentFrame
+        Instance.new("UICorner", ItemButton).CornerRadius = UDim.new(0, 6)
+
+        ItemButton.MouseEnter:Connect(function()
+            ItemButton.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+        end)
+        ItemButton.MouseLeave:Connect(function()
+            ItemButton.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+        end)
+
+        ItemButton.MouseButton1Click:Connect(function()
+            DropdownButton.Text = Option.label
+            ToggleDropdown()
+
+            -- Handle rainbow toggle
+            if Option.label == "RAINBOW" then
+                IS_RAINBOW = true
+            else
+                IS_RAINBOW = false
+                DEFAULT_COLOR = Option.color
+            end
+
+            for _, Gui in pairs(NameESP_Guis) do
+                local NameLabel = Gui:FindFirstChildOfClass("TextLabel")
+                if NameLabel then
+                    NameLabel.TextColor3 = DEFAULT_COLOR
+                end
+            end
+
+            pcall(function()
+                DestroyMissileTrail()
+            end)
+            if GetMissileTrailEnabled() and MissilePrimaryPart and MissilePrimaryPart.Parent then
+                pcall(function()
+                    CreateMissileTrail()
+                    if MissileTrailSystem.Trail then
+                        MissileTrailSystem.Trail.Color = ColorSequence.new(DEFAULT_COLOR)
+                    end
+                end)
+            end
+        end)
+    end
+
+    DropdownButton.Text = ColorOptions[DefaultIndex].label
+    DEFAULT_COLOR = ColorOptions[DefaultIndex].color
+
+    return {
+        getSelected = function()
+            return DropdownButton.Text
+        end,
+        setSelected = function(Index)
+            Index = math.clamp(Index, 1, #ColorOptions)
+            DropdownButton.Text = ColorOptions[Index].label
+            if ColorOptions[Index].label == "RAINBOW" then
+                IS_RAINBOW = true
+            else
+                IS_RAINBOW = false
+                DEFAULT_COLOR = ColorOptions[Index].color
+            end
+
+            for _, Gui in pairs(NameESP_Guis) do
+                local NameLabel = Gui:FindFirstChildOfClass("TextLabel")
+                if NameLabel then
+                    NameLabel.TextColor3 = DEFAULT_COLOR
+                end
+            end
+        end,
+    }
+end
+
+local ColorSelector = CreateColorSelector("Trail & Name Color:", 180, ContentFrames.Visual, COLOR_OPTIONS, 4)
+
+-- =============================================
+-- SERVER HOP BUTTON (Visual Tab)
+-- =============================================
+local ServerHopButton = CreateSimpleButton("Server Hop", 250, ContentFrames.Visual)
+
+local IsHopping = false
+ServerHopButton.MouseButton1Click:Connect(function()
+    if IsHopping then return end
+    IsHopping = true
+    ServerHopButton.Text = "Hopping..."
+    ServerHopButton.BackgroundColor3 = Color3.fromRGB(80, 40, 0)
+
+    local PlaceId = game.PlaceId
+
+    -- If re-execute on hop is enabled, store this script in a shared table
+    -- so it fires again after teleport arrives
+    if GetReexecuteOnHopEnabled() then
+        local ScriptSource = game:GetService("ScriptContext"):FindFirstChild("LocalScript") 
+        -- We use a _G key to signal re-execution after arrival
+        _G.__ReexecuteScript = true
+    end
+
+    local Success = pcall(function()
+        local Servers = TeleportService:GetSortedGameInstances(PlaceId, 10)
+        if Servers and #Servers > 0 then
+            for _, Server in ipairs(Servers) do
+                if Server.JobId ~= game.JobId then
+                    TeleportService:TeleportToPlaceInstance(PlaceId, Server.JobId, LocalPlayer)
+                    return
+                end
+            end
+        end
+        TeleportService:Teleport(PlaceId, LocalPlayer)
+    end)
+
+    if not Success then
+        pcall(function()
+            TeleportService:Teleport(PlaceId, LocalPlayer)
+        end)
+    end
+
+    task.delay(5, function()
+        if IsHopping then
+            IsHopping = false
+            ServerHopButton.Text = "Server Hop"
+            ServerHopButton.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+        end
+    end)
+end)
+
+-- Re-execute on arrival
+TeleportService.LocalPlayerArrivedFromTeleport:Connect(function(_, TeleportData)
+    if _G.__ReexecuteScript then
+        _G.__ReexecuteScript = nil
+        task.wait(2) -- wait for game to load
+        local ScriptUrl = "https://raw.githubusercontent.com/sukhoi/missile/main/script.lua" -- replace with your actual raw script URL
+        local Ok, Result = pcall(game.HttpGet, game, ScriptUrl)
+        if Ok and Result then
+            local Fn, Err = loadstring(Result)
+            if Fn then
+                task.spawn(Fn)
+            end
+        end
+    end
+end)
+-- =============================================
+
+local function CreateSlider(LabelText, YOffset, ParentFrame, MaxValue, DefaultValue)
+    local ContainerLabel, SliderBackground, SliderFill, SliderUpdate
+    local Container = Instance.new("Frame")
+    Container.Size = UDim2.new(1, -20, 0, 30)
+    Container.Position = UDim2.new(0, 10, 0, YOffset)
+    Container.BackgroundTransparency = 1
+    Container.Parent = ParentFrame
+
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, -20, 0, 20)
+    Label.Position = UDim2.new(0, 10, 0, YOffset)
+    Label.BackgroundTransparency = 1
+    Label.TextColor3 = Color3.new(1, 1, 1)
+    Label.Font = Enum.Font.Michroma
+    Label.TextSize = 14
+    Label.Text = LabelText .. tostring(DefaultValue)
+    Label.TextXAlignment = Enum.TextXAlignment.Left
+    Label.Parent = ParentFrame
+
+    local Background = Instance.new("TextButton")
+    Background.Size = UDim2.new(1, -20, 0, 12)
+    Background.Position = UDim2.new(0, 10, 0, YOffset + 22)
+    Background.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    Background.Text = ""
+    Background.Parent = ParentFrame
+    Instance.new("UICorner", Background).CornerRadius = UDim.new(0, 6)
+
+    local Fill = Instance.new("Frame")
+    Fill.BackgroundColor3 = DEEP_PURPLE
+    Fill.Size = UDim2.new(DefaultValue / MaxValue, 0, 1, 0)
+    Fill.Parent = Background
+    Instance.new("UICorner", Fill).CornerRadius = UDim.new(0, 6)
+
+    local function UpdateSlider(AbsoluteX)
+        local RelativeX = math.clamp((AbsoluteX - Background.AbsolutePosition.X) / Background.AbsoluteSize.X, 0, 1)
+        TweenService:Create(Fill, TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {
+            Size = UDim2.new(RelativeX, 0, 1, 0),
+        }):Play()
+
+        local Value = math.floor(RelativeX * MaxValue * 100) / 100
+        Label.Text = LabelText .. tostring(Value)
+        return Value
+    end
+
+    return Label, Background, Fill, UpdateSlider
+end
+
+local _, SpeedSlider, _, UpdateSpeedValue = CreateSlider("Speed: ", 220, ContentFrames.Missile, 25000, 100)
+local _, SmoothnessSlider, _, UpdateSmoothnessValue = CreateSlider("Smoothness: ", 260, ContentFrames.Missile, 100, 10)
+local _, PredictionSlider, _, UpdatePredictionValue = CreateSlider("Prediction: ", 300, ContentFrames.Missile, 2, 0.16)
+
+local TelemetryFrame = Instance.new("Frame")
+TelemetryFrame.Size = UDim2.new(0, 360, 0, 90)
+TelemetryFrame.Position = UDim2.new(0.5, -180, 1, -120)
+TelemetryFrame.BackgroundTransparency = 1
+TelemetryFrame.Active = true
+TelemetryFrame.Draggable = true
+TelemetryFrame.Parent = MainGui
+
+local function CreateTelemetryLabel(YOffset, DefaultText)
+    local Label = Instance.new("TextLabel")
+    Label.Size = UDim2.new(1, 0, 0, 24)
+    Label.Position = UDim2.new(0, 0, 0, YOffset)
+    Label.BackgroundTransparency = 0.4
+    Label.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    Label.TextColor3 = Color3.new(1, 1, 1)
+    Label.Font = Enum.Font.Michroma
+    Label.TextSize = 16
+    Label.TextXAlignment = Enum.TextXAlignment.Center
+    Label.Text = DefaultText or "waiting for target.."
+    Label.Parent = TelemetryFrame
+    Instance.new("UICorner", Label).CornerRadius = UDim.new(0, 6)
+    return Label
+end
+
+local TargetVelocityLabel = CreateTelemetryLabel(90)
+local MissileVelocityLabel = CreateTelemetryLabel(60)
+local MissileDistanceLabel = CreateTelemetryLabel(30)
+
+local TargetPlayer = nil
+local IsMissileLaunched = false
+local MissileSpeed = 100
+local MissileSmoothness = 0.1
+local PredictionOffset = 0.16
+local LaunchTime = 0
+
+TargetTextBox:GetPropertyChangedSignal("Text"):Connect(function()
+    local InputText = TargetTextBox.Text:lower()
+    local FoundName = nil
+    for _, Player in ipairs(Players:GetPlayers()) do
+        if Player.Name:lower():find(InputText) then
+            FoundName = Player.Name
+            break
+        end
+    end
+    TargetHintLabel.Text = FoundName or ""
+end)
+
+SpeedSlider.MouseButton1Down:Connect(function()
+    local Connection = RunService.RenderStepped:Connect(function()
+        MissileSpeed = UpdateSpeedValue(UserInputService:GetMouseLocation().X)
+    end)
+    UserInputService.InputEnded:Wait()
+    Connection:Disconnect()
+end)
+
+SmoothnessSlider.MouseButton1Down:Connect(function()
+    local Connection = RunService.RenderStepped:Connect(function()
+        MissileSmoothness = math.max(0.01, UpdateSmoothnessValue(UserInputService:GetMouseLocation().X) / 100)
+    end)
+    UserInputService.InputEnded:Wait()
+    Connection:Disconnect()
+end)
+
+PredictionSlider.MouseButton1Down:Connect(function()
+    local Connection = RunService.RenderStepped:Connect(function()
+        PredictionOffset = UpdatePredictionValue(UserInputService:GetMouseLocation().X)
+    end)
+    UserInputService.InputEnded:Wait()
+    Connection:Disconnect()
+end)
+
+LaunchButton.MouseButton1Click:Connect(function()
+    local TargetName = TargetHintLabel.Text
+    if TargetName ~= "" then
+        TargetPlayer = Players:FindFirstChild(TargetName)
+        if TargetPlayer then
+            IsMissileLaunched = true
+            LaunchTime = tick()
+        end
+    end
+end)
+
+local function CalculateTargetPrediction(TargetPos, TargetVel, MissilePos, MissileSpeed)
+    return TargetPos + TargetVel * PredictionOffset
+end
+
+local Camera = Workspace.CurrentCamera
+local IsViewingMissile = false
+ViewMissileButton.MouseButton1Click:Connect(function()
+    IsViewingMissile = not IsViewingMissile
+    if IsViewingMissile then
+        Camera.CameraSubject = MissilePrimaryPart
+        Camera.CameraType = Enum.CameraType.Track
+        ViewMissileButton.Text = "Exit View"
+    else
+        Camera.CameraSubject = LocalPlayer.Character and LocalPlayer.Character:FindFirstChildWhichIsA("Humanoid")
+        Camera.CameraType = Enum.CameraType.Custom
+        ViewMissileButton.Text = "View Missile"
+    end
+end)
+
+UserInputService.InputBegan:Connect(function(Input, GameProcessed)
+    if not GameProcessed and Input.KeyCode == Enum.KeyCode.K then
+        IsMissileLaunched = false
+        PredictionBall.Position = Vector3.new(9999, 9999, 9999)
+        pcall(DestroyMissileTrail)
+    end
+end)
+
+local MissileESP_Gui = nil
+
+local function CreateMissileESP(Part)
+    if not Part or not Part:IsA("BasePart") then return end
+    if MissileESP_Gui then
+        MissileESP_Gui:Destroy()
+        MissileESP_Gui = nil
+    end
+
+    local WIDTH = 60
+    local HEIGHT = 60
+    local THICKNESS = 2
+
+    local BillboardGui = Instance.new("BillboardGui")
+    BillboardGui.Name = "MissileESP_Billboard"
+    BillboardGui.Adornee = Part
+    BillboardGui.Size = UDim2.new(0, WIDTH, 0, HEIGHT)
+    BillboardGui.AlwaysOnTop = true
+    BillboardGui.LightInfluence = 0
+    BillboardGui.MaxDistance = 10000
+    BillboardGui.Parent = MainGui
+
+    local FrameContainer = Instance.new("Frame")
+    FrameContainer.Size = UDim2.new(1, 0, 1, 0)
+    FrameContainer.BackgroundTransparency = 1
+    FrameContainer.BorderSizePixel = 0
+    FrameContainer.Parent = BillboardGui
+
+    local V1 = Vector2.new(WIDTH / 2, 6)
+    local V2 = Vector2.new(10, HEIGHT - 10)
+    local V3 = Vector2.new(WIDTH - 10, HEIGHT - 10)
+
+    local function DrawLine(P0, P1)
+        local DeltaX = P1.X - P0.X
+        local DeltaY = P1.Y - P0.Y
+        local Length = math.sqrt(DeltaX * DeltaX + DeltaY * DeltaY)
+        local Angle = math.deg(math.atan2(DeltaY, DeltaX))
+
+        local Line = Instance.new("Frame")
+        Line.Size = UDim2.new(0, Length, 0, THICKNESS)
+        Line.Position = UDim2.new(0, (P0.X + P1.X) / 2, 0, (P0.Y + P1.Y) / 2)
+        Line.AnchorPoint = Vector2.new(0.5, 0.5)
+        Line.BackgroundColor3 = Color3.fromRGB(255, 0, 0)
+        Line.BorderSizePixel = 0
+        Line.Rotation = Angle
+        Line.Parent = FrameContainer
+        Line.BackgroundTransparency = 0.6
+    end
+
+    DrawLine(V1, V2)
+    DrawLine(V2, V3)
+    DrawLine(V3, V1)
+
+    MissileESP_Gui = BillboardGui
+end
+
+local function DestroyMissileESP()
+    if MissileESP_Gui then
+        MissileESP_Gui:Destroy()
+        MissileESP_Gui = nil
+    end
+end
+
+local function UpdateMissileESP()
+    if GetMissileESPEnabled() then
+        if MissilePrimaryPart and MissilePrimaryPart.Parent then
+            if not MissileESP_Gui or MissileESP_Gui.Adornee ~= MissilePrimaryPart then
+                CreateMissileESP(MissilePrimaryPart)
+            end
+        else
+            DestroyMissileESP()
+        end
+    else
+        DestroyMissileESP()
+    end
+end
+
+local TargetESP_Gui = nil
+
+local function CreateTargetESP(Part)
+    if not Part or not Part:IsA("BasePart") then return end
+    if TargetESP_Gui then
+        TargetESP_Gui:Destroy()
+        TargetESP_Gui = nil
+    end
+
+    local WIDTH = 60
+    local HEIGHT = 60
+    local THICKNESS = 2
+
+    local BillboardGui = Instance.new("BillboardGui")
+    BillboardGui.Name = "TargetESP_Billboard"
+    BillboardGui.Adornee = Part
+    BillboardGui.Size = UDim2.new(0, WIDTH, 0, HEIGHT)
+    BillboardGui.AlwaysOnTop = true
+    BillboardGui.LightInfluence = 0
+    BillboardGui.MaxDistance = 10000
+    BillboardGui.Parent = MainGui
+
+    local FrameContainer = Instance.new("Frame")
+    FrameContainer.Size = UDim2.new(1, 0, 1, 0)
+    FrameContainer.BackgroundTransparency = 1
+    FrameContainer.BorderSizePixel = 0
+    FrameContainer.Parent = BillboardGui
+
+    local function DrawCornerLine(X, Y, W, H)
+        local Line = Instance.new("Frame")
+        Line.Size = UDim2.new(0, W, 0, H)
+        Line.Position = UDim2.new(0, X, 0, Y)
+        Line.BackgroundColor3 = Color3.fromRGB(0, 255, 0)
+        Line.BackgroundTransparency = 0.6
+        Line.BorderSizePixel = 0
+        Line.Parent = FrameContainer
+    end
+
+    DrawCornerLine(0, 0, WIDTH, THICKNESS)
+    DrawCornerLine(0, HEIGHT - THICKNESS, WIDTH, THICKNESS)
+    DrawCornerLine(0, 0, THICKNESS, HEIGHT)
+    DrawCornerLine(WIDTH - THICKNESS, 0, THICKNESS, HEIGHT)
+
+    TargetESP_Gui = BillboardGui
+end
+
+local function DestroyTargetESP()
+    if TargetESP_Gui then
+        TargetESP_Gui:Destroy()
+        TargetESP_Gui = nil
+    end
+end
+
+local function UpdateTargetESP()
+    if GetTargetESPEnabled() then
+        if PredictionBall and PredictionBall.Parent then
+            if not TargetESP_Gui or TargetESP_Gui.Adornee ~= PredictionBall then
+                CreateTargetESP(PredictionBall)
+            end
+        else
+            DestroyTargetESP()
+        end
+    else
+        DestroyTargetESP()
+    end
+end
+
+local MissileTrailLifetime = 7
+local MissileTrailWidth = 0.5
+local MissileTrailBrightness = 2
+local MissileTrailSystem = {}
+
+local function CreateMissileTrail()
+    if MissileTrailSystem.Trail then return end
+
+    local Part1 = Instance.new("Part")
+    Part1.Name = "MissileTrailAnchor1"
+    Part1.Size = Vector3.new(0.2, 0.2, 0.2)
+    Part1.Transparency = 1
+    Part1.Anchored = true
+    Part1.CanCollide = false
+    Part1.Parent = Workspace
+
+    local Part2 = Part1:Clone()
+    Part2.Name = "MissileTrailAnchor2"
+    Part2.Parent = Workspace
+
+    local Attachment1 = Instance.new("Attachment", Part1)
+    local Attachment2 = Instance.new("Attachment", Part2)
+
+    local Trail = Instance.new("Trail")
+    Trail.Name = "MissileTrail"
+    Trail.Attachment0 = Attachment1
+    Trail.Attachment1 = Attachment2
+    Trail.FaceCamera = true
+    Trail.Lifetime = MissileTrailLifetime
+    Trail.MinLength = 0.1
+    Trail.LightInfluence = 0
+    Trail.Brightness = MissileTrailBrightness
+    Trail.Transparency = NumberSequence.new({
+        NumberSequenceKeypoint.new(0, 0.2),
+        NumberSequenceKeypoint.new(0.8, 0.6),
+        NumberSequenceKeypoint.new(1, 1)
+    })
+    Trail.Color = ColorSequence.new(DEFAULT_COLOR)
+    Trail.WidthScale = NumberSequence.new(MissileTrailWidth)
+    Trail.Parent = Workspace
+
+    MissileTrailSystem = {
+        Part1 = Part1,
+        Part2 = Part2,
+        Trail = Trail,
+    }
+end
+
+local function DestroyMissileTrail()
+    for _, Instance in pairs(MissileTrailSystem) do
+        if typeof(Instance) == "Instance" and Instance.Parent then
+            Instance:Destroy()
+        end
+    end
+    MissileTrailSystem = {}
+end
+
+local function UpdateMissileTrail()
+    if not GetMissileTrailEnabled() then
+        DestroyMissileTrail()
+        return
+    end
+
+    if MissilePrimaryPart and MissilePrimaryPart.Parent then
+        CreateMissileTrail()
+
+        local CFrame = MissilePrimaryPart.CFrame
+        local TailPosition = CFrame.Position - CFrame.LookVector * (MissilePrimaryPart.Size.Z / 2 + 0.12)
+
+        local LeftOffset = CFrame.RightVector * -0.25
+        local RightOffset = CFrame.RightVector * 0.25
+
+        if MissileTrailSystem.Part1 then
+            MissileTrailSystem.Part1.Position = TailPosition + LeftOffset
+        end
+        if MissileTrailSystem.Part2 then
+            MissileTrailSystem.Part2.Position = TailPosition + RightOffset
+        end
+        if MissileTrailSystem.Trail then
+            MissileTrailSystem.Trail.Color = ColorSequence.new(DEFAULT_COLOR)
+        end
+    else
+        DestroyMissileTrail()
+    end
+end
+
+local function UpdateMissileCollision()
+    if not AircraftModel then return end
+
+    local CanCollide = not GetNoCollisionEnabled()
+    for _, Part in ipairs(AircraftModel:GetDescendants()) do
+        if Part:IsA("BasePart") then
+            Part.CanCollide = CanCollide
+        end
+    end
+end
+
+local LIFT_VELOCITY = 7
+local LIFT_DURATION = 0.5
+
+RunService.Heartbeat:Connect(function()
+    if IsMissileLaunched and MissilePrimaryPart and TargetPlayer and TargetPlayer.Character and TargetPlayer.Character:FindFirstChild("HumanoidRootPart") then
+
+        local TargetRootPart = TargetPlayer.Character.HumanoidRootPart
+        local TargetVelocity = TargetRootPart.AssemblyLinearVelocity
+        local MissileVelocity = MissilePrimaryPart.AssemblyLinearVelocity
+
+        if tick() - LaunchTime < LIFT_DURATION then
+            MissilePrimaryPart.AssemblyLinearVelocity = Vector3.new(0, LIFT_VELOCITY, 0)
+        else
+            local PredictedPosition = CalculateTargetPrediction(TargetRootPart.Position, TargetVelocity, MissilePrimaryPart.Position, MissileSpeed)
+            PredictionBall.Position = PredictedPosition
+
+            local LocalPlayerRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+            if LocalPlayerRoot then
+                local DistanceRatio = math.clamp(((LocalPlayerRoot.Position - PredictedPosition)).Magnitude / 30, 10, 20)
+                PredictionBall.Size = Vector3.new(DistanceRatio, DistanceRatio, DistanceRatio)
+            end
+
+            local DirectionToTarget = (PredictedPosition - MissilePrimaryPart.Position).Unit
+            local TargetVelocityVector = DirectionToTarget * MissileSpeed
+
+            MissilePrimaryPart.AssemblyLinearVelocity = MissileVelocity:Lerp(TargetVelocityVector, MissileSmoothness)
+
+            if DetonationPart and DetonationPart:IsA("BasePart") then
+                MissilePrimaryPart.CFrame = CFrame.new(MissilePrimaryPart.Position, PredictedPosition)
+            end
+
+            TargetVelocityLabel.Text = string.format("TargetVel: (%.0f, %.0f, %.0f)", TargetVelocity.X, TargetVelocity.Y, TargetVelocity.Z)
+            MissileVelocityLabel.Text = string.format("MissileVel: (%.0f, %.0f, %.0f)", MissileVelocity.X, MissileVelocity.Y, MissileVelocity.Z)
+            local Distance = (MissilePrimaryPart.Position - PredictedPosition).Magnitude
+            MissileDistanceLabel.Text = "Distance: " .. math.floor(Distance)
+
+            if GetAutoDetonateEnabled() and Distance <= 4 then
+                VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.K, false, game)
+                task.wait()
+                VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.K, false, game)
+            end
+        end
+    else
+        TargetVelocityLabel.Text = "n/a"
+        MissileVelocityLabel.Text = "n/a"
+        MissileDistanceLabel.Text = "n/a"
+    end
+
+    pcall(UpdateMissileESP)
+    pcall(UpdateTargetESP)
+end)
+
+Workspace.ChildAdded:Connect(function(Child)
+    if Child.Name == LocalPlayer.Name .. " Aircraft" then
+        task.wait(0.5)
+        AircraftModel, MissilePrimaryPart, DetonationPart = FindAndSetupAircraft()
+        pcall(UpdateMissileESP)
+    end
+end)
+
+RunService.Heartbeat:Connect(function()
+    pcall(UpdateMissileESP)
+    pcall(UpdateTargetESP)
+    pcall(UpdateMissileTrail)
+    UpdateMissileCollision()
+end)
